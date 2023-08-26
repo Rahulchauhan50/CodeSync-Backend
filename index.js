@@ -4,16 +4,23 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const ACTIONS = require('./Actions');
+const cors = require('cors');
+const connectToMongo = require('./conection')
+const CodeChange = require('./model')
+connectToMongo();
+app.use(cors());
 
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static('build'));
+
 app.use((req, res, next) => {
     res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
 const userSocketMap = {};
+
 function getAllConnectedClients(roomId) {
     // Map
     return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map(
@@ -42,8 +49,40 @@ io.on('connection', (socket) => {
         });
     });
 
-    socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
+    socket.on(ACTIONS.CODE_CHANGE,async ({ roomId, code, file}) => {
+        try {
+            
         socket.in(roomId).emit(ACTIONS.CODE_CHANGE, { code });
+        
+        const existingEntry  = await CodeChange.findOne({ roomId:roomId })
+
+        if (existingEntry) {
+            const existingFileIndex = await existingEntry.data.findIndex(
+                (element) => element.filename === file)
+                
+                if(existingFileIndex < 0){
+                existingEntry.data.unshift({
+                    filename:file,
+                    code  
+                })
+                await existingEntry.save();
+    
+            }else{
+                existingEntry.data[existingFileIndex].code = code
+                existingEntry.markModified('data'); 
+                await existingEntry.save();
+            }
+        
+          } else {
+            const newEntry = new CodeChange({
+              roomId,
+              data: [{ filename: file, code: code }],
+            });
+            await newEntry.save();
+          }
+        } catch (error) {
+            
+        }
     });
 
     socket.on(ACTIONS.SYNC_CODE, ({ socketId, code }) => {
