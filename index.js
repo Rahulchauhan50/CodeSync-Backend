@@ -5,9 +5,6 @@ const path = require('path');
 const { Server } = require('socket.io');
 const ACTIONS = require('./Actions');
 const cors = require('cors');
-const connectToMongo = require('./conection')
-const CodeChange = require('./model')
-connectToMongo();
 app.use(cors());
 
 const server = http.createServer(app);
@@ -53,33 +50,7 @@ io.on('connection', (socket) => {
         try {
             
         socket.in(roomId).emit(ACTIONS.CODE_CHANGE, { code });
-        
-        const existingEntry  = await CodeChange.findOne({ roomId:roomId })
-
-        if (existingEntry) {
-            const existingFileIndex = await existingEntry.data.findIndex(
-                (element) => element.filename === file)
-                
-                if(existingFileIndex < 0){
-                existingEntry.data.unshift({
-                    filename:file,
-                    code  
-                })
-                await existingEntry.save();
-    
-            }else{
-                existingEntry.data[existingFileIndex].code = code
-                existingEntry.markModified('data'); 
-                await existingEntry.save();
-            }
-        
-          } else {
-            const newEntry = new CodeChange({
-              roomId,
-              data: [{ filename: file, code: code }],
-            });
-            await newEntry.save();
-          }
+       
         } catch (error) {
             
         }
